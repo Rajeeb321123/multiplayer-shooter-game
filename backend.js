@@ -34,7 +34,7 @@ app.get('/', (req, res) => {
 const backendPlayers = {};
 const backendProjectiles = {};
 let projectileId = 0;
-const SPEED = 10;
+const SPEED = 5;
 const RADIUS = 10;
 const PROJECTILE_RADIUS = 5;
 
@@ -83,8 +83,8 @@ io.on('connection', (socket) => {
     // players[socket.id] will create inside   players object with property  socket.id and we use players.socket.id to access later on
     backendPlayers[socket.id] = {
       // x and y are postion new player spawn
-      x: 500 * Math.random(),
-      y: 500 * Math.random(),
+      x: 1024 * Math.random(),
+      y: 576 * Math.random(),
       color: `hsl(${360 * Math.random()}, 100%, 50%)`,
       sequenceNumber: 0,
       score: 0,
@@ -98,9 +98,11 @@ io.on('connection', (socket) => {
     backendPlayers[socket.id].radius = RADIUS
 
     // setting the size of player according individual screen ratio
-    if (devicePixelRatio > 1) {
-      backendPlayers[socket.id].radius = 2 * RADIUS
-    };
+    // if (devicePixelRatio > 1) {
+    //   backendPlayers[socket.id].radius = 2 * RADIUS
+    // };
+    // WE  dont need to consider devicePixelRatio now as we already used c.scale in frontend.js
+
   });
 
   // we want to remove the player every time each player disconnect or refresh on backend and then frontend inside
@@ -118,6 +120,12 @@ io.on('connection', (socket) => {
   // IMP: Authorative server Movement
   // we will be moving player in backend so hacker cannot hack the movement
   socket.on('keydown', ({ keyCode, sequenceNumber }) => {
+    const backendPlayer = backendPlayers[socket.id];
+    
+    if (!backendPlayers[socket.id]) {
+      return;
+    };
+    
     // to keep track which event or request by frontend we are currently on
     backendPlayers[socket.id].sequenceNumber = sequenceNumber;
     switch (keyCode) {
@@ -133,7 +141,27 @@ io.on('connection', (socket) => {
       case 'KeyD':
         backendPlayers[socket.id].x += SPEED;
         break;
-    }
+    };
+
+    const playerSides = {
+      left: backendPlayer.x - backendPlayer.radius,
+      right: backendPlayer.x + backendPlayer.radius,
+      top: backendPlayer.y - backendPlayer.radius,
+      bottom: backendPlayer.y + backendPlayer.radius
+    };
+    // stoppin from goind out of bound
+    if ( playerSides.left < 0) {
+      backendPlayers[socket.id].x = backendPlayer.radius
+    };
+    if ( playerSides.right > 1024 ) {
+      backendPlayers[socket.id].x = 1024-backendPlayer.radius
+    };
+    if ( playerSides.top < 0) {
+      backendPlayers[socket.id].y = backendPlayer.radius
+    };
+    if ( playerSides.bottom > 576 ) {
+      backendPlayers[socket.id].y = 576-backendPlayer.radius
+    };
   });
 });
 
@@ -176,7 +204,6 @@ setInterval(() => {
         if (backendPlayers[backendProjectiles[id].playerId]) {
           backendPlayers[backendProjectiles[id].playerId].score++;
         };
-        console.log(backendPlayers[backendProjectiles[id].playerId])
         delete backendPlayers[playerId];
         delete backendProjectiles[id];
         break;

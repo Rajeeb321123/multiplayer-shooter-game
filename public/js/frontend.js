@@ -10,8 +10,11 @@ const scoreEl = document.querySelector('#scoreEl')
 // for better resolution. if browser or screen doesnot have devicePixelRatio property we will set it to 1
 const devicePixelRatio = window.devicePixelRatio || 1;
 
-canvas.width = innerWidth * devicePixelRatio;
-canvas.height = innerHeight * devicePixelRatio;
+canvas.width = 1024 * devicePixelRatio;
+canvas.height = 576 * devicePixelRatio;
+
+// scaling the size of people with smaller screen , so they dont have disadvatages in the game.
+c.scale(devicePixelRatio, devicePixelRatio);
 
 const x = canvas.width / 2
 const y = canvas.height / 2
@@ -72,6 +75,7 @@ socket.on('updatePlayers', (backendPlayers) => {
         radius: 10,
         // imp: generating color in frontend isnot ok as player can cheat and make themself blend along with background.
         color: backendPlayer.color,
+        username: backendPlayer.username
       });
 
       document.querySelector('#playerLabels').innerHTML += `<div data-id = "${id}" data-score = "${backendPlayer.score}">${backendPlayer.username}: ${backendPlayer.score}</div>`
@@ -108,12 +112,18 @@ socket.on('updatePlayers', (backendPlayers) => {
         parentDiv.appendChild(div);
       });
 
+      // VERY IMP: enhanced interpolation
+      // we will use gsap , rather we creatre target position and ease into that new position 
+      frontendPlayers[id].target = {
+        x: backendPlayer.x,
+        y: backendPlayer.y
+      };
 
       // we want server reconcillation for our frontend only against jitter error so,
       if (id === socket.id) {
-        // IMP: we can update the movement of our player. using Ticker in backend 
-        frontendPlayers[id].x = backendPlayer.x;
-        frontendPlayers[id].y = backendPlayer.y;
+        // // IMP: we can update the movement of our player. using Ticker in backend 
+        // frontendPlayers[id].x = backendPlayer.x;
+        // frontendPlayers[id].y = backendPlayer.y;
 
 
         const lastBackendInputIndex = playerInputs.findIndex(input => {
@@ -128,22 +138,22 @@ socket.on('updatePlayers', (backendPlayers) => {
         };
 
         playerInputs.forEach(input => {
-          frontendPlayers[id].x += input.dx;
-          frontendPlayers[id].y += input.dy;
+          frontendPlayers[id].target.x += input.dx;
+          frontendPlayers[id].target.y += input.dy;
         })
       }
       else {
         // for all other players movements
         // VERY IMP: interpolation of other player movement if they lag
         // so, they dont look shitty when moving. USING GSAP
-        gsap.to(frontendPlayers[id], {
-          x: backendPlayer.x,
-          y: backendPlayer.y,
-          // changing default duration
-          // changin duration to 15 millisecond according to tick rate in a backend for good animation
-          duration: 0.015,
-          ease: 'linear'
-        })
+        // gsap.to(frontendPlayers[id], {
+        //   x: backendPlayer.x,
+        //   y: backendPlayer.y,
+        //   // changing default duration
+        //   // changin duration to 15 millisecond according to tick rate in a backend for good animation
+        //   duration: 0.015,
+        //   ease: 'linear'
+        // })
       }
     };
   };
@@ -170,12 +180,19 @@ let animationId
 function animate() {
   animationId = requestAnimationFrame(animate)
   c.fillStyle = 'rgba(0, 0, 0, 0.1)'
-  c.fillRect(0, 0, canvas.width, canvas.height)
+  // c.fillRect(0, 0, canvas.width, canvas.height)
+  c.clearRect(0, 0, canvas.width, canvas.height);
 
   // rendering each of the other players in canvas 
   // VERY IMP: for in is for object loop
   for (const id in frontendPlayers) {
     const frontendPlayer = frontendPlayers[id];
+
+    // Very IMp:Enhanced linear Interpolation :
+    if (frontendPlayer.target) {
+      frontendPlayers[id].x += (frontendPlayers[id].target.x - frontendPlayers[id].x) * 0.5
+      frontendPlayers[id].y += (frontendPlayers[id].target.y - frontendPlayers[id].y) * 0.5
+    }
     frontendPlayer.draw();
   };
   for (const id in frontendProjectiles) {
@@ -210,7 +227,7 @@ const keys = {
   },
 };
 
-const SPEED = 10;
+const SPEED = 5;
 const playerInputs = [];
 let sequenceNumber = 0;
 // frontend ticker for whether keys are pressed. moving this code out of eventListener will make it more snappy and smooth.
